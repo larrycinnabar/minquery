@@ -44,6 +44,10 @@ type MinQuery interface {
 	// cursorFields lists the fields (in order) to be used to generate
 	// the returned cursor.
 	All(result interface{}, cursorFields ...string) (cursor string, err error)
+
+	// All retrieves all documents from the result set into the provided slice.
+	// with returned cursor and hasNext flag
+	AllWithHasNext(result interface{}, cursorFields ...string) (cursor string, hasNext bool, err error)
 }
 
 // errTestValue is the error value returned for testing purposes.
@@ -143,10 +147,10 @@ func (mq *minQuery) CursorCodec(cc CursorCodec) MinQuery {
 	return mq
 }
 
-// All implements MinQuery.All().
-func (mq *minQuery) All(result interface{}, cursorFields ...string) (cursor string, err error) {
+func (mq *minQuery) AllWithHasNext(result interface{}, cursorFields ...string) (cursor string, hasNext bool, err error) {
 	if mq.cursorErr != nil {
-		return "", mq.cursorErr
+		err = mq.cursorErr
+		return
 	}
 
 	// Mongodb "find" reference:
@@ -154,8 +158,10 @@ func (mq *minQuery) All(result interface{}, cursorFields ...string) (cursor stri
 
 	cmd := bson.D{
 		{Name: "find", Value: mq.coll},
-		{Name: "limit", Value: mq.limit},
-		{Name: "batchSize", Value: mq.limit},
+		// increase limit to 1, to know if there is a next page (instead of `hasNext()`)
+		// if hasNext value will be true, we will remove last extra result
+		{Name: "limit", Value: mq.limit + 1},
+		{Name: "batchSize", Value: mq.limit + 1},
 		{Name: "singleBatch", Value: true},
 	}
 	if mq.filter != nil {
@@ -168,11 +174,25 @@ func (mq *minQuery) All(result interface{}, cursorFields ...string) (cursor stri
 		cmd = append(cmd, bson.DocElem{Name: "projection", Value: mq.projection})
 	}
 	if mq.min != nil {
-		// min is inclusive, skip the first (which is the previous last)
-		cmd = append(cmd,
-			bson.DocElem{Name: "skip", Value: 1},
-			bson.DocElem{Name: "min", Value: mq.min},
-		)
+		var minDirection bool = true
+		if len(mq.sort) > 0 {
+			if sortDirection, ok := mq.sort[0].Value.(int); ok {
+				minDirection = sortDirection > 0
+			}
+		}
+
+		if minDirection {
+			// min is inclusive, skip the first (which is the previous last)
+			cmd = append(cmd,
+				bson.DocElem{Name: "skip", Value: 1},
+				bson.DocElem{Name: "min", Value: mq.min},
+			)
+		} else {
+			// max is not inclusive, do not skip the first
+			cmd = append(cmd,
+				bson.DocElem{Name: "max", Value: mq.min},
+			)
+		}
 	}
 
 	var res struct {
@@ -190,6 +210,13 @@ func (mq *minQuery) All(result interface{}, cursorFields ...string) (cursor stri
 	}
 
 	firstBatch := res.Cursor.FirstBatch
+
+	// Getting hasNext flag
+	// remove extra result if needed
+	if hasNext = len(firstBatch) == mq.limit+1; hasNext {
+		firstBatch = firstBatch[:len(firstBatch)-1]
+	}
+
 	if len(firstBatch) > 0 {
 		if len(cursorFields) > 0 {
 			// create cursor from the last document
@@ -220,4 +247,10 @@ func (mq *minQuery) All(result interface{}, cursorFields ...string) (cursor stri
 	// Unmarshal results (FirstBatch) into the user-provided value:
 	err = mq.db.C(mq.coll).NewIter(nil, firstBatch, 0, nil).All(result)
 	return
+}
+
+// All implements MinQuery.All().
+func (mq *minQuery) All(result interface{}, cursorFields ...string) (cursor string, err error) {
+	cursor, _, err = mq.AllWithHasNext(result, cursorFields...)
+	return cursor, err
 }
