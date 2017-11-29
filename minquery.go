@@ -161,9 +161,12 @@ func (mq *minQuery) AllWithHasNext(result interface{}, cursorFields ...string) (
 		// increase limit to 1, to know if there is a next page (instead of `hasNext()`)
 		// if hasNext value will be true, we will remove last extra result
 		{Name: "limit", Value: mq.limit + 1},
-		{Name: "batchSize", Value: mq.limit + 1},
-		{Name: "singleBatch", Value: true},
 	}
+	if mq.min != nil {
+		cmd = append(cmd, bson.DocElem{Name: "batchSize", Value: mq.limit + 1})
+	}
+	cmd = append(cmd, bson.DocElem{Name: "singleBatch", Value: true})
+
 	if mq.filter != nil {
 		cmd = append(cmd, bson.DocElem{Name: "filter", Value: mq.filter})
 	}
@@ -198,7 +201,7 @@ func (mq *minQuery) AllWithHasNext(result interface{}, cursorFields ...string) (
 	var res struct {
 		OK       int `bson:"ok"`
 		WaitedMS int `bson:"waitedMS"`
-		Cursor   struct {
+		Cursor struct {
 			ID         interface{} `bson:"id"`
 			NS         string      `bson:"ns"`
 			FirstBatch []bson.Raw  `bson:"firstBatch"`
