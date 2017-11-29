@@ -1,0 +1,7 @@
+package: github.com/larrycinnabar/minquery
+import:
+- package: gopkg.in/mgo.v2
+  subpackages:
+  - bson
+testImport:
+- package: github.com/icza/mighty
