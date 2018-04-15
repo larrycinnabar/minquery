@@ -1,6 +1,6 @@
 package: github.com/larrycinnabar/minquery
 import:
-- package: gopkg.in/mgo.v2
+- package: github.com/globalsign/mgo
   subpackages:
   - bson
 testImport:
