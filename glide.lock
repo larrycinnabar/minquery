@@ -1,5 +1,5 @@
 hash: 702e16488e7c5bb241a419a10064bdeba9ec66e9b90a6f2f8bb7d39a684096cb
-updated: 2017-11-29T11:45:47.190976+03:00
+updated: 2018-04-16T10:09:10.557604+03:00
 imports:
 - name: gopkg.in/mgo.v2
   version: 3f83fa5005286a7fe593b055f0d7771a7dce4655
@@ -10,4 +10,4 @@ imports:
   - internal/scram
 testImports:
 - name: github.com/icza/mighty
-  version: a71d0a4e1cb6029bccd136dd24b0c1ed09452c8f
+  version: 6304d21ca6455c798ab31653f668c1f5577128de
